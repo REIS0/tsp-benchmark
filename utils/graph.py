@@ -26,16 +26,21 @@ class Graph:
         nx.draw_networkx_nodes(self.__graph, pos)
         nx.draw_networkx_edges(self.__graph, pos)
         nx.draw_networkx_labels(self.__graph, pos)
-        nx.draw_networkx_edge_labels(self.__graph, pos, nx.get_edge_attributes(self.__graph, 'weight'), font_size=10,
-                                     font_color="b")
+        nx.draw_networkx_edge_labels(
+            self.__graph,
+            pos,
+            nx.get_edge_attributes(self.__graph, "weight"),
+            font_size=10,
+            font_color="b",
+        )
         plt.plot()
 
     def get_edge_weight(self, node1: int, node2: int) -> int:
-        return self.__graph.edges[str(node1), str(node2)]['weight']
+        return self.__graph.edges[str(node1), str(node2)]["weight"]
 
 
 def get_edge_weight(graph: nx.Graph, node1: int, node2: int) -> int:
-    return graph.edges[node1, node2]['weight']
+    return graph.edges[node1, node2]["weight"]
 
 
 def create_graph(n_nodes: int, edge_list: list) -> nx.Graph:
@@ -69,7 +74,9 @@ def load_graph(filename: str) -> Graph:
 
 def find_optimal(graph: nx.Graph) -> int:
     all_paths = []
-    permutations = list(itertools.permutations([i for i in range(1, graph.number_of_nodes())]))
+    permutations = list(
+        itertools.permutations([i for i in range(1, graph.number_of_nodes())])
+    )
     for p in permutations:
         path = list(p)
         path.insert(0, 0)
@@ -78,7 +85,9 @@ def find_optimal(graph: nx.Graph) -> int:
 
     min_cost = float("inf")
     for path in all_paths:
-        cost = sum(graph.edges[str(i), str(j)]["weight"] for i, j in nx.utils.pairwise(path))
+        cost = sum(
+            graph.edges[str(i), str(j)]["weight"] for i, j in nx.utils.pairwise(path)
+        )
         if cost < min_cost:
             min_cost = cost
 

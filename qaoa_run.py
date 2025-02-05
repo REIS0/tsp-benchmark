@@ -9,13 +9,30 @@ from qiskit_ibm_runtime.fake_provider import FakeOsaka
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV1 as Sampler
 from qiskit_optimization.converters import QuadraticProgramToQubo
+from qiskit_algorithms import QAOA
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
-from qiskit_algorithms import SamplingVQE
 
 SERVICE_KEY = get_key()
 
 # Create dicts for data
-ANSATZ = Ansatz()
+MIXERS = Mixers()
+
+
+def qp_to_qubo(qp):
+    qp2qubo = QuadraticProgramToQubo()
+    qubo = qp2qubo.convert(qp)
+    qubitOp, offset = qubo.to_ising()
+    return qubo, qubitOp.num_qubits
+
+
+def run_qaoa(qubo, optimizer, mixer, reps):
+    print("Running QAOA...")
+    qaoa_mes = QAOA(sampler=noisy_sampler, mixer=mixer, reps=reps, optimizer=optimizer)
+    qaoa = MinimumEigenOptimizer(qaoa_mes)
+    qaoa_result = qaoa.solve(qubo)
+
+    return qaoa_result.samples
+
 
 graphs = []
 
@@ -32,34 +49,17 @@ noisy_sampler = Sampler(backend=aer_sim)
 
 finished = None
 with Database() as db:
-    finished = db.get_finished_vqe()
+    finished = db.get_finished_qaoa()
 
-
-def qp_to_qubo(qp):
-    qp2qubo = QuadraticProgramToQubo()
-    qubo = qp2qubo.convert(qp)
-    qubitOp, offset = qubo.to_ising()
-    return qubo, qubitOp.num_qubits
-
-
-def run_vqe(qubo, optimizer, ansatz):
-    print("Running VQE...")
-    vqe = SamplingVQE(sampler=noisy_sampler, ansatz=ansatz, optimizer=optimizer)
-    optimizer = MinimumEigenOptimizer(vqe)
-    vqe_result = optimizer.solve(qubo)
-
-    return vqe_result.samples
-
-
-total_permutations = (len(optimizers.keys()) * len(ANSATZ.ansatz_list) * DEPTH) - len(
+total_permutations = (len(optimizers.keys()) * len(MIXERS.mixer_list) * DEPTH) - len(
     finished
 )
 current_permutation = 0
 
 for opt_key, opt_val in optimizers.items():
-    for ansatz in ANSATZ.ansatz_list:
+    for mixer in MIXERS.mixer_list:
         for depth in range(1, DEPTH + 1):
-            current = (depth, ansatz, opt_key)
+            current = (depth, mixer, opt_key)
             if current in finished:
                 continue
             current_permutation += 1
@@ -68,7 +68,7 @@ for opt_key, opt_val in optimizers.items():
                 f"Running iteration {current_permutation} of {total_permutations} with current settings: "
             )
             print(f"Optimizer: {opt_key}")
-            print(f"Ansatz: {ansatz}")
+            print(f"Mixer: {mixer}")
             print(f"Depth: {depth}")
             print()
 
@@ -86,8 +86,8 @@ for opt_key, opt_val in optimizers.items():
                     print(f"Running graph: {graph_index}")
                     qubo, num_qubits = qp_to_qubo(model)
                     exec_start = time.time()
-                    raw_samples = run_vqe(
-                        qubo, opt_val, ANSATZ.get_ansatz(num_qubits, ansatz, depth)
+                    raw_samples = run_qaoa(
+                        qubo, opt_val, MIXERS.get_mixer(num_qubits, mixer), depth
                     )
                     exec_stop = time.time()
                     print("Processing samples...")
@@ -108,9 +108,9 @@ for opt_key, opt_val in optimizers.items():
             with Database() as db:
                 db.insert_data(
                     {
-                        "algorithm": "vqe",
+                        "algorithm": "qaoa",
                         "depth": depth,
-                        "ansatz": ansatz,
+                        "mixer": mixer,
                         "optimizer": opt_key,
                         "feasibility_ratio": sum(feasibility_list)
                         / len(feasibility_list),

@@ -5,7 +5,7 @@ import sqlite3
 # | algorithm | mixer (qaoa) | ansatz (vqe) | optimizer | depth | feasibility_ratio | cost_ratio | best_ratio
 class Database:
     def __enter__(self):
-        self.con = sqlite3.connect('data.db')
+        self.con = sqlite3.connect("data.db")
         return self
 
     def insert_data(self, data: dict):
@@ -16,16 +16,16 @@ class Database:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                data.get('algorithm'),
-                data.get('mixer'),
-                data.get('ansatz'),
-                data.get('optimizer'),
-                data.get('depth'),
-                data.get('feasibility_ratio'),
-                data.get('cost_ratio'),
-                data.get('rank'),
-                data.get('time'),
-            )
+                data.get("algorithm"),
+                data.get("mixer"),
+                data.get("ansatz"),
+                data.get("optimizer"),
+                data.get("depth"),
+                data.get("feasibility_ratio"),
+                data.get("cost_ratio"),
+                data.get("rank"),
+                data.get("time"),
+            ),
         )
         self.con.commit()
 
@@ -33,13 +33,21 @@ class Database:
         cur = self.con.cursor()
         return cur.execute("SELECT * FROM data").fetchall()
 
+    def run_sql(self, command: str) -> list:
+        cur = self.con.cursor()
+        return cur.execute(command).fetchall()
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.con.close()
 
     def get_finished_vqe(self) -> list:
         cur = self.con.cursor()
-        return cur.execute("SELECT depth, ansatz, optimizer FROM data").fetchall()
+        return cur.execute(
+            "SELECT depth, ansatz, optimizer FROM data WHERE algorithm='vqe'"
+        ).fetchall()
 
     def get_finished_qaoa(self) -> list:
         cur = self.con.cursor()
-        return cur.execute("SELECT depth, mixer, optimizer FROM data").fetchall()
+        return cur.execute(
+            "SELECT depth, mixer, optimizer FROM data WHERE algorithm='qaoa'"
+        ).fetchall()
