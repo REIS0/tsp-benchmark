@@ -1,5 +1,5 @@
 from qiskit import QuantumCircuit
-from qiskit_algorithms.optimizers import COBYLA, SPSA, POWELL, SLSQP, L_BFGS_B, P_BFGS
+from qiskit_algorithms.optimizers import COBYLA, SPSA, POWELL, SLSQP
 from qiskit.circuit.library import (
     TwoLocal,
     PauliTwoDesign,

@@ -20,7 +20,7 @@ ANSATZ = Ansatz()
 graphs = []
 
 print("Loading graphs...")
-for i in range(10):
+for i in range(3):
     g = load_graph(f"graphs/graph_5_{i}")
     model = create_model(g)
     graphs.append((g, model))
@@ -48,36 +48,28 @@ def run_vqe(qubo, optimizer, ansatz):
     optimizer = MinimumEigenOptimizer(vqe)
     vqe_result = optimizer.solve(qubo)
 
-    return vqe_result.samples
+    return vqe_result.samples[0]
 
 
-total_permutations = (len(optimizers.keys()) * len(ANSATZ.ansatz_list) * DEPTH) - len(
-    finished
-)
-current_permutation = 0
+# total_permutations = (len(optimizers.keys()) * len(ANSATZ.ansatz_list) * DEPTH) - len(
+#     finished
+# )
+# current_permutation = 0
 
 for opt_key, opt_val in optimizers.items():
     for ansatz in ANSATZ.ansatz_list:
         for depth in range(1, DEPTH + 1):
-            current = (depth, ansatz, opt_key)
-            if current in finished:
-                continue
-            current_permutation += 1
+            # current_permutation += 1
             print("-------------------------------------------")
-            print(
-                f"Running iteration {current_permutation} of {total_permutations} with current settings: "
-            )
+            # print(
+            #     f"Running iteration {current_permutation} of {total_permutations} with current settings: "
+            # )
             print(f"Optimizer: {opt_key}")
             print(f"Ansatz: {ansatz}")
             print(f"Depth: {depth}")
             print()
 
-            feasibility_list = []
-            cost_list = []
-            rank_list = []
             graph_index = 0
-            exec_start = None
-            exec_stop = None
 
             start = time.time()
             try:
@@ -85,40 +77,44 @@ for opt_key, opt_val in optimizers.items():
                     graph_index += 1
                     print(f"Running graph: {graph_index}")
                     qubo, num_qubits = qp_to_qubo(model)
-                    exec_start = time.time()
-                    raw_samples = run_vqe(
-                        qubo, opt_val, ANSATZ.get_ansatz(num_qubits, ansatz, depth)
-                    )
-                    exec_stop = time.time()
-                    print("Processing samples...")
-                    samples = process_samples(raw_samples, model)
-                    print(f"Graph {graph_index} finished")
-                    print()
+                    for i in range(5):
+                        iteration = i+1
+                        print(f"Running iteration {iteration}")
+                        if (depth, ansatz, opt_key, graph_index, iteration) in finished:
+                            print(f"Skipped ({depth}, {ansatz}, {opt_key}, {graph_index}, {iteration})")
+                            continue
+                        exec_start = time.time()
+                        best_sample = run_vqe(
+                            qubo, opt_val, ANSATZ.get_ansatz(num_qubits, ansatz, depth)
+                        )
+                        exec_stop = time.time()
+                        sample_cost = int(best_sample.fval)
+                        valid = model.get_feasibility_info(best_sample.x)[0]
+                        print(f"Graph {graph_index} interation {iteration} finished")
+                        print("Saving to database...")
+                        print()
+                        with Database() as db:
+                            db.insert_data(
+                                {
+                                    "algorithm": "vqe",
+                                    "ansatz": ansatz,
+                                    "optimizer": opt_key,
+                                    "depth": depth,
+                                    "cost": sample_cost,
+                                    "valid": 1 if valid else 0,
+                                    "graph": graph_index,
+                                    "iteration": iteration,
+                                    "optimal": graph.optimal,
+                                    "time": exec_stop - exec_start,
+                                }
+                            )
 
-                    feasibility_list.append(get_feasibility_ratio(samples))
-                    cost_list.append(get_cost_ratio(samples, graph.optimal))
-                    rank_list.append(get_rank(samples, get_info(raw_samples[0], model)))
             except Exception as e:
                 print("Skipped due to the following exception:")
                 print(e)
                 print("\nSKIP")
                 continue
 
-            print("Saving to database...")
-            with Database() as db:
-                db.insert_data(
-                    {
-                        "algorithm": "vqe",
-                        "depth": depth,
-                        "ansatz": ansatz,
-                        "optimizer": opt_key,
-                        "feasibility_ratio": sum(feasibility_list)
-                        / len(feasibility_list),
-                        "cost_ratio": sum(cost_list) / len(cost_list),
-                        "rank": sum(rank_list) / len(rank_list),
-                        "time": exec_stop - exec_start,
-                    }
-                )
             end = time.time()
             print(f"Time: {end - start}s")
             print("-------------------------------------------")

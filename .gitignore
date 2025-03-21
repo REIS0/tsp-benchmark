@@ -2,3 +2,4 @@ key
 notebooks/sketch.ipynb
 __pycache__/
 .idea/
+.*
